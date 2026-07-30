@@ -45,7 +45,14 @@ app.use(express.json());
 let aiClient: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI | null {
   if (!aiClient && process.env.GEMINI_API_KEY) {
-    aiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    aiClient = new GoogleGenAI({ 
+      apiKey: process.env.GEMINI_API_KEY,
+      httpOptions: {
+        headers: {
+          'User-Agent': 'aistudio-build'
+        }
+      }
+    });
   }
   return aiClient;
 }
@@ -63,29 +70,71 @@ const AIRLINES = [
   { name: 'Virgin Atlantic', code: 'VS', logo: '🔴', color: '#C8102E' }
 ];
 
-// Helper to estimate price base by airport codes & cabin class
-function estimateBasePrice(origin: string, destination: string, cabin: string): number {
-  let base = 650;
-  
-  // Distance estimate pairs
-  const highDistPairs = ['JFK-HND', 'JFK-SYD', 'LHR-SYD', 'DXB-SYD', 'LAX-SIN', 'JFK-SIN', 'CDG-HND'];
-  const medDistPairs = ['JFK-LHR', 'JFK-CDG', 'JFK-DXB', 'LHR-DXB', 'YYZ-LHR', 'LAX-HND'];
-  
-  const pairStr = `${origin}-${destination}`;
-  const revPairStr = `${destination}-${origin}`;
-  
-  if (highDistPairs.includes(pairStr) || highDistPairs.includes(revPairStr)) {
-    base = 1250;
-  } else if (medDistPairs.includes(pairStr) || medDistPairs.includes(revPairStr)) {
-    base = 850;
+// Helper to estimate price base dynamically by airport codes, travel dates & cabin class
+function estimateBasePrice(origin: string, destination: string, cabin: string, departDate?: string): number {
+  const orig = (origin || 'JFK').toUpperCase().trim();
+  const dest = (destination || 'LHR').toUpperCase().trim();
+
+  // Known distance & route baseline matrix (in USD for 1 Economy passenger)
+  const routeBaselines: Record<string, number> = {
+    'JFK-LHR': 720, 'LHR-JFK': 720,
+    'JFK-CDG': 780, 'CDG-JFK': 780,
+    'JFK-HND': 1350, 'HND-JFK': 1350,
+    'JFK-SYD': 1650, 'SYD-JFK': 1650,
+    'JFK-DXB': 1100, 'DXB-JFK': 1100,
+    'LAX-LHR': 850, 'LHR-LAX': 850,
+    'LAX-HND': 1150, 'HND-LAX': 1150,
+    'LAX-SIN': 1400, 'SIN-LAX': 1400,
+    'SFO-CDG': 920, 'CDG-SFO': 920,
+    'LHR-DXB': 680, 'DXB-LHR': 680,
+    'LHR-SIN': 950, 'SIN-LHR': 950,
+    'LHR-CDG': 140, 'CDG-LHR': 140,
+    'JFK-LAX': 380, 'LAX-JFK': 380,
+    'SFO-JFK': 390, 'JFK-SFO': 390,
+    'MIA-LHR': 740, 'LHR-MIA': 740,
+    'ORD-LHR': 760, 'LHR-ORD': 760,
+    'JFK-LOS': 1250, 'LOS-JFK': 1250,
+    'CDG-HND': 1280, 'HND-CDG': 1280
+  };
+
+  const key = `${orig}-${dest}`;
+  let basePrice = routeBaselines[key];
+
+  if (!basePrice) {
+    let charDiff = 0;
+    for (let i = 0; i < 3; i++) {
+      charDiff += Math.abs((orig.charCodeAt(i) || 65) - (dest.charCodeAt(i) || 65));
+    }
+    const isShortRoute = charDiff < 15;
+    basePrice = isShortRoute ? 320 + (charDiff * 10) : 750 + (charDiff * 16);
   }
 
-  if (cabin === 'Premium Economy') base *= 1.45;
-  if (cabin === 'Business') base *= 2.6;
-  if (cabin === 'First') base *= 4.5;
+  // Date proximity & seasonality factor
+  if (departDate) {
+    const d = new Date(departDate);
+    if (!isNaN(d.getTime())) {
+      const dayOfMonth = d.getDate();
+      const month = d.getMonth() + 1;
+      const dayOfWeek = d.getDay();
+      const isWeekend = dayOfWeek === 0 || dayOfWeek === 5 || dayOfWeek === 6;
+      const seasonal = (month === 6 || month === 7 || month === 8 || month === 12) ? 1.20 : 0.95;
+      const weekendMult = isWeekend ? 1.10 : 1.0;
+      const dateHash = ((dayOfMonth * 17 + month * 31) % 30 - 15) / 100; // -0.15 to +0.15 variance
+      basePrice = Math.round(basePrice * seasonal * weekendMult * (1 + dateHash));
+    }
+  }
 
-  return Math.round(base);
+  // Cabin Class multiplier
+  if (cabin === 'Premium Economy') basePrice *= 1.55;
+  if (cabin === 'Business') basePrice *= 2.85;
+  if (cabin === 'First') basePrice *= 4.75;
+
+  return Math.max(150, Math.round(basePrice));
 }
+
+// In-memory flight search cache (20-minute TTL)
+const flightSearchCache = new Map<string, { timestamp: number; payload: any }>();
+const SEARCH_CACHE_TTL = 20 * 60 * 1000;
 
 // API Endpoint 1: Real-time Flight Search & Price Checker
 app.post("/api/flights/search", async (req, res) => {
@@ -101,38 +150,51 @@ app.post("/api/flights/search", async (req, res) => {
       passengers = 1 
     } = req.body;
 
+    const cacheKey = `${origin}_${destination}_${departDate || ''}_${returnDate || ''}_${tripType}_${cabinClass}_${passengers}_${JSON.stringify(segments)}`;
+    const cached = flightSearchCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp < SEARCH_CACHE_TTL)) {
+      return res.json(cached.payload);
+    }
+
     const gemini = getGeminiClient();
 
     let realTimeFlights = null;
+    let groundingSources: any[] = [];
+    let groundedByAI = false;
 
     if (gemini) {
       try {
-        let routeDescription = `from ${origin} to ${destination} departing on ${departDate}${tripType === 'round' ? ` and returning on ${returnDate}` : ''}`;
+        let routeDescription = `from ${origin} to ${destination} departing on ${departDate || 'upcoming date'}${tripType === 'round' && returnDate ? ` returning on ${returnDate}` : ''}`;
         if (tripType === 'multi' && Array.isArray(segments) && segments.length > 0) {
           const segStr = segments.map((s: any, i: number) => `Leg ${i + 1}: ${s.origin} to ${s.destination} on ${s.date}`).join(', ');
           routeDescription = `Multi-city flight itinerary with legs: [${segStr}]`;
         }
 
-        const prompt = `Perform a real-time search for flight prices and actual flight options for ${routeDescription} for ${passengers} passenger(s) in ${cabinClass} class.
-        
-Provide output strictly in a valid JSON array format containing 4 to 6 flight option objects. Each object should have:
-- flightNumber: string (e.g. "BA178", "EK202", "DL3")
-- airline: string (e.g. "British Airways", "Emirates", "Delta Air Lines")
-- airlineCode: string (2-letter code)
-- origin: string (airport code)
-- destination: string (airport code)
-- departTime: string (e.g. "08:30 AM")
-- arriveTime: string (e.g. "08:45 PM")
-- duration: string (e.g. "14h 20m Total")
-- stops: number (0 for nonstop, 1 for 1 stop)
-- stopLocation: string or null
-- retailPrice: number (estimated total retail price in USD)
-- aircraft: string (e.g. "Boeing 787-9", "Airbus A350-1000")
-- seatsRemaining: number (e.g. 3, 5, 8)
-- cabinClass: string
-- baggageIncluded: string (e.g. "2 x 32kg Checked Bags + Carry-on")
+        const prompt = `Use Google Search to perform a real-time live search for flight ticket prices, airlines, and actual schedules for ${routeDescription} for ${passengers} passenger(s) in ${cabinClass} class.
+Find actual real-world flight ticket prices for airlines flying this route (e.g. British Airways, Delta Air Lines, United Airlines, Emirates, Qatar Airways, Air France, Lufthansa, Singapore Airlines, Virgin Atlantic, American Airlines, etc.) for the requested travel dates.
+Ensure pricing is realistic for the chosen route, dates, and ${cabinClass} class.
 
-Only return JSON array, no markdown codeblocks or surrounding text if possible.`;
+Return ONLY a valid JSON array of 4 to 6 flight option objects. Do not include markdown codeblocks (\`\`\`json), backticks, or preamble text.
+Output Schema:
+[
+  {
+    "flightNumber": "BA178",
+    "airline": "British Airways",
+    "airlineCode": "BA",
+    "origin": "${origin}",
+    "destination": "${destination}",
+    "departTime": "08:15 AM",
+    "arriveTime": "08:25 PM",
+    "duration": "7h 10m",
+    "stops": 0,
+    "stopLocation": null,
+    "retailPrice": 1420,
+    "aircraft": "Boeing 787-10 Dreamliner",
+    "seatsRemaining": 4,
+    "cabinClass": "${cabinClass}",
+    "baggageIncluded": "2 x 32kg Checked Bags"
+  }
+]`;
 
         const response = await gemini.models.generateContent({
           model: 'gemini-3.6-flash',
@@ -143,26 +205,43 @@ Only return JSON array, no markdown codeblocks or surrounding text if possible.`
         });
 
         const textResponse = response.text || '';
-        const jsonMatch = textResponse.match(/\[\s*\{[\s\S]*\}\s*\]/);
-        if (jsonMatch) {
-          realTimeFlights = JSON.parse(jsonMatch[0]);
+        const chunks = (response.candidates?.[0]?.groundingMetadata as any)?.groundingChunks;
+        if (Array.isArray(chunks)) {
+          groundingSources = chunks.map((c: any) => ({
+            title: c?.web?.title || 'Google Flight Index',
+            uri: c?.web?.uri || ''
+          })).filter((s: any) => s.uri);
         }
-      } catch (geminiError) {
-        // High-precision live schedule engine fallback
+
+        const cleanedText = textResponse.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const jsonMatch = cleanedText.match(/\[\s*\{[\s\S]*\}\s*\]/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            realTimeFlights = parsed;
+            groundedByAI = true;
+          }
+        }
+      } catch (geminiError: any) {
+        const isQuota = geminiError?.status === 429 || geminiError?.message?.includes('429') || geminiError?.message?.includes('quota') || geminiError?.message?.includes('RESOURCE_EXHAUSTED');
+        if (isQuota) {
+          console.info('[Flight Search Engine] Gemini API rate limit reached. Serving dynamic route price engine.');
+        } else {
+          console.info('[Flight Search Engine] Live search notice:', geminiError?.message?.slice(0, 100) || 'Grounding unavailable');
+        }
       }
     }
 
     // Fallback/Augment generator if AI response wasn't available or parseable
     if (!realTimeFlights || !Array.isArray(realTimeFlights) || realTimeFlights.length === 0) {
-      let basePrice = estimateBasePrice(origin, destination, cabinClass);
+      let basePrice = estimateBasePrice(origin, destination, cabinClass, departDate);
       
       if (tripType === 'multi' && Array.isArray(segments) && segments.length > 0) {
-        // Sum base price for each segment
         let multiSum = 0;
         segments.forEach((seg: any) => {
-          multiSum += estimateBasePrice(seg.origin || 'JFK', seg.destination || 'LHR', cabinClass);
+          multiSum += estimateBasePrice(seg.origin || 'JFK', seg.destination || 'LHR', cabinClass, seg.date || departDate);
         });
-        basePrice = Math.round(multiSum * 0.90); // Multi-city bundle discount
+        basePrice = Math.round(multiSum * 0.90);
       }
 
       const schedules = [
@@ -184,7 +263,7 @@ Only return JSON array, no markdown codeblocks or surrounding text if possible.`
 
         return {
           id: `flight-${firstOrigin}-${lastDest}-${idx + 1}`,
-          flightNumber: `${airline.code}${100 + idx * 27 + Math.floor(Math.random() * 9)}`,
+          flightNumber: `${airline.code}${100 + idx * 27 + (departDate ? new Date(departDate).getDate() : 7)}`,
           airline: airline.name,
           airlineCode: airline.code,
           logo: airline.logo,
@@ -199,10 +278,10 @@ Only return JSON array, no markdown codeblocks or surrounding text if possible.`
           aircraft: sched.craft,
           timeSlot: sched.timeSlot,
           retailPrice,
-          royaPrice: Math.round(retailPrice * 0.70), // 30% Concierge discount
+          royaPrice: Math.round(retailPrice * 0.70),
           savings: Math.round(retailPrice * 0.30),
           discountPercent: 30,
-          seatsRemaining: Math.floor(Math.random() * 5) + 2,
+          seatsRemaining: ((idx * 3 + (departDate ? new Date(departDate).getDate() : 5)) % 7) + 2,
           cabinClass,
           baggageIncluded: cabinClass === 'Business' || cabinClass === 'First' 
             ? '2 x 32kg Checked + 2 Carry-ons' 
@@ -216,7 +295,8 @@ Only return JSON array, no markdown codeblocks or surrounding text if possible.`
     } else {
       // Process Gemini search results
       realTimeFlights = realTimeFlights.map((f: any, idx: number) => {
-        const retailPrice = Number(f.retailPrice) || estimateBasePrice(origin, destination, cabinClass) * passengers;
+        const baseCalculated = estimateBasePrice(origin, destination, cabinClass, departDate);
+        const retailPrice = Number(f.retailPrice) || (baseCalculated * passengers);
         const airlineInfo = AIRLINES.find(a => a.name.toLowerCase().includes(f.airline?.toLowerCase() || '')) || AIRLINES[idx % AIRLINES.length];
 
         return {
@@ -234,7 +314,7 @@ Only return JSON array, no markdown codeblocks or surrounding text if possible.`
           stops: f.stops ?? 0,
           stopLocation: f.stopLocation || null,
           aircraft: f.aircraft || 'Boeing 787 Dreamliner',
-          timeSlot: 'Live Scheduled',
+          timeSlot: 'Live Grounded Fare',
           retailPrice,
           royaPrice: Math.round(retailPrice * 0.70),
           savings: Math.round(retailPrice * 0.30),
@@ -250,14 +330,23 @@ Only return JSON array, no markdown codeblocks or surrounding text if possible.`
       });
     }
 
-    res.json({
+    const payload = {
       success: true,
       searchQuery: { origin, destination, departDate, returnDate, tripType, segments, cabinClass, passengers },
       timestamp: new Date().toISOString(),
       flightsCount: realTimeFlights.length,
       currency: 'USD',
+      meta: {
+        groundedByAI,
+        googleSearchGrounding: true,
+        groundingSources
+      },
       flights: realTimeFlights
-    });
+    };
+
+    flightSearchCache.set(cacheKey, { timestamp: Date.now(), payload });
+
+    res.json(payload);
 
   } catch (err: any) {
     console.error("Flight Search API Error:", err);

@@ -97,6 +97,8 @@ export default function App() {
     executeFlightSearch(searchQuery);
   }, []);
 
+  const [searchMeta, setSearchMeta] = useState({});
+
   const executeFlightSearch = async (query) => {
     setSearchLoading(true);
     setSearchError('');
@@ -122,6 +124,7 @@ export default function App() {
 
       if (searchData.success && searchData.flights) {
         setFlights(searchData.flights);
+        setSearchMeta(searchData.meta || {});
       } else {
         setSearchError(searchData.error || 'No flights found for this route');
       }
@@ -235,6 +238,7 @@ export default function App() {
           loading={searchLoading}
           error={searchError}
           priceTrend={priceTrend}
+          searchMeta={searchMeta}
           onSelectFlight={handleSelectFlight}
           onOpenShare={handleOpenShare}
           currency={currency}

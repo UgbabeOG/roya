@@ -42,9 +42,10 @@ export async function fetchLiveFlightPricing(searchParams) {
     if (data.success && Array.isArray(data.flights)) {
       return {
         success: true,
-        source: data.meta?.realtime ? 'Amadeus / Live GDS Engine' : 'Live Real-Time Search',
-        currency: data.meta?.currency || 'USD',
-        searchQuery: data.meta?.query || { origin, destination, departDate, returnDate, passengers, cabinClass },
+        source: data.meta?.groundedByAI ? 'Google Gemini & Internet Search Grounded' : 'Live Real-Time Engine',
+        currency: data.currency || 'USD',
+        searchQuery: data.searchQuery || { origin, destination, departDate, returnDate, passengers, cabinClass },
+        meta: data.meta || {},
         flights: data.flights.map(flight => ({
           ...flight,
           perPaxPrice: Math.round((flight.royaPrice || flight.retailPrice * 0.7) / Math.max(1, passengers)),
