@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Plane, Calendar, Users, Shield, ArrowRightLeft, Sparkles, Activity, Search, History, Clock, ArrowRight, Tag, Globe, Plus, Trash2 } from 'lucide-react';
-import { POPULAR_AIRPORTS as SEED_AIRPORTS } from '../data/destinations';
+import { POPULAR_AIRPORTS } from '../data/destinations';
 import { fetchAirportsFromFirestore } from '../lib/destinationsService';
 import { calculateSavings, formatCurrency } from '../utils/pnrGenerator';
 
 export default function FlightSearchForm({ onSearchFlights, loading, currency = 'USD', onCurrencyChange }) {
-  const [airports, setAirports] = useState(SEED_AIRPORTS);
+  const [airports, setAirports] = useState(POPULAR_AIRPORTS);
   const [tripType, setTripType] = useState('round');
   const [origin, setOrigin] = useState('JFK');
   const [destination, setDestination] = useState('LHR');
@@ -24,6 +24,31 @@ export default function FlightSearchForm({ onSearchFlights, loading, currency = 
 
   // Recent Searches state (last 3 queries persisted in localStorage)
   const [recentSearches, setRecentSearches] = useState([]);
+  const [dateError, setDateError] = useState('');
+
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const handleDepartDateChange = (val) => {
+    setDepartDate(val);
+    setDateError('');
+    if (tripType === 'round' && val > returnDate) {
+      // Auto adjust return date to be 7 days after new departure date
+      const d = new Date(val);
+      d.setDate(d.getDate() + 7);
+      const nextRet = d.toISOString().split('T')[0];
+      setReturnDate(nextRet);
+    }
+  };
+
+  const handleReturnDateChange = (val) => {
+    if (val < departDate) {
+      setDateError('Return date cannot be earlier than departure date. Departure date must precede return date.');
+      setReturnDate(departDate);
+    } else {
+      setDateError('');
+      setReturnDate(val);
+    }
+  };
 
   useEffect(() => {
     async function loadAirports() {
@@ -124,8 +149,8 @@ export default function FlightSearchForm({ onSearchFlights, loading, currency = 
     const retDate = params.returnDate || returnDate;
     const pax = params.passengers || passengers;
 
-    const originObj = POPULAR_AIRPORTS.find(a => a.code === originCode) || { code: originCode, city: originCode, name: originCode };
-    const destObj = POPULAR_AIRPORTS.find(a => a.code === destCode) || { code: destCode, city: destCode, name: destCode };
+    const originObj = (airports || POPULAR_AIRPORTS).find(a => a.code === originCode) || { code: originCode, city: originCode, name: originCode };
+    const destObj = (airports || POPULAR_AIRPORTS).find(a => a.code === destCode) || { code: destCode, city: destCode, name: destCode };
 
     const searchPayload = {
       tripType: tType,
@@ -161,7 +186,17 @@ export default function FlightSearchForm({ onSearchFlights, loading, currency = 
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    executeSearch({ origin, destination, departDate, returnDate, tripType, passengers, cabinClass });
+
+    let validDep = departDate;
+    let validRet = returnDate;
+
+    if (tripType === 'round' && new Date(departDate) > new Date(returnDate)) {
+      setDateError('Departure date cannot be after return date. We auto-aligned your return date.');
+      validRet = departDate;
+      setReturnDate(departDate);
+    }
+
+    executeSearch({ origin, destination, departDate: validDep, returnDate: validRet, tripType, passengers, cabinClass });
   };
 
   const handleSelectRecent = (recent) => {
@@ -301,6 +336,25 @@ export default function FlightSearchForm({ onSearchFlights, loading, currency = 
             </div>
           </div>
 
+          {dateError && (
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid #EF4444',
+              borderRadius: 'var(--radius-sm)',
+              padding: '10px 16px',
+              color: '#FCA5A5',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <AlertCircle size={16} color="#EF4444" />
+              <span>{dateError}</span>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit}>
             {/* Standard Round Trip / One Way Layout */}
             {tripType !== 'multi' && (
@@ -381,7 +435,8 @@ export default function FlightSearchForm({ onSearchFlights, loading, currency = 
                     <input 
                       type="date" 
                       value={departDate} 
-                      onChange={(e) => setDepartDate(e.target.value)}
+                      min={todayStr}
+                      onChange={(e) => handleDepartDateChange(e.target.value)}
                       style={inputStyle}
                     />
                   </div>
@@ -396,7 +451,8 @@ export default function FlightSearchForm({ onSearchFlights, loading, currency = 
                       <input 
                         type="date" 
                         value={returnDate} 
-                        onChange={(e) => setReturnDate(e.target.value)}
+                        min={departDate}
+                        onChange={(e) => handleReturnDateChange(e.target.value)}
                         style={inputStyle}
                       />
                     </div>
