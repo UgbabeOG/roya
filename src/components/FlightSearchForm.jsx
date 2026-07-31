@@ -710,63 +710,17 @@ export default function FlightSearchForm({ onSearchFlights, loading, currency = 
               </div>
             )}
 
-            {/* Bottom Bar: High-Visibility Price Comparison + Action Button */}
+            {/* Bottom Bar: Action Button */}
             <div style={{
               marginTop: '28px',
               paddingTop: '24px',
               borderTop: '1px solid rgba(229, 193, 88, 0.2)',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
+              justifyContent: 'center',
               flexWrap: 'wrap',
               gap: '20px'
             }}>
-              {/* High Impact Public Fare vs RoyaBridge Concierge Fare Comparison Box */}
-              <div style={{
-                background: 'linear-gradient(135deg, rgba(7, 11, 20, 0.95) 0%, rgba(14, 21, 38, 0.95) 100%)',
-                border: '1.5px solid #10B981',
-                borderRadius: 'var(--radius-md)',
-                padding: '14px 22px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '20px',
-                flexWrap: 'wrap',
-                boxShadow: '0 4px 20px rgba(16, 185, 129, 0.15)'
-              }}>
-                <div>
-                  <span style={{ fontSize: '0.72rem', color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700, display: 'block' }}>
-                    PUBLIC AIRFARE (STANDARD)
-                  </span>
-                  <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#EF4444', textDecoration: 'line-through' }}>
-                    {formatCurrency(savings.originalPrice, currency)}
-                  </span>
-                </div>
-
-                <div style={{ width: '1px', height: '32px', background: 'rgba(255,255,255,0.15)' }} />
-
-                <div>
-                  <span style={{ fontSize: '0.72rem', color: '#6EE7B7', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 800, display: 'block' }}>
-                    ROYABRIDGE CONCIERGE FARE
-                  </span>
-                  <span style={{ fontSize: '1.65rem', fontWeight: 900, color: 'var(--color-gold-bright)', letterSpacing: '-0.02em' }}>
-                    {formatCurrency(savings.finalPrice, currency)}
-                  </span>
-                </div>
-
-                <span style={{
-                  background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
-                  color: '#FFF',
-                  padding: '6px 14px',
-                  borderRadius: 'var(--radius-full)',
-                  fontSize: '0.82rem',
-                  fontWeight: 900,
-                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
-                  whiteSpace: 'nowrap'
-                }}>
-                  YOU SAVE {formatCurrency(savings.discountAmount, currency)} ({savings.savingsPercentage}% OFF)
-                </span>
-              </div>
-
               {/* Submit CTA */}
               <button 
                 type="submit"
@@ -777,7 +731,6 @@ export default function FlightSearchForm({ onSearchFlights, loading, currency = 
                 {loading ? <Activity className="animate-spin" size={18} /> : <Search size={18} />}
                 {loading ? 'Searching Live Inventory...' : (tripType === 'multi' ? 'Search Multi-City Flights' : 'Search Real-Time Flights & Prices')}
               </button>
-
             </div>
 
           </form>

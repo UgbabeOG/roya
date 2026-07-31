@@ -244,78 +244,10 @@ export default function RealTimeFlightResults({
                     </span>
                   </h2>
 
-                  {/* AI & Google Search Grounding Badge */}
-                  <div style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    marginTop: '8px',
-                    padding: '4px 12px',
-                    borderRadius: '20px',
-                    background: 'rgba(59, 130, 246, 0.12)',
-                    border: '1px solid rgba(59, 130, 246, 0.3)',
-                    color: '#93C5FD',
-                    fontSize: '0.8rem',
-                    fontWeight: 600
-                  }}>
-                    <Sparkles size={13} color="#60A5FA" />
-                    <span>
-                      {searchMeta?.groundedByAI 
-                        ? 'Fares Live-Grounded via Google Gemini & Internet Search' 
-                        : 'Dynamic Route Price Engine Active'}
-                    </span>
-                  </div>
 
-                  {/* Grounding Web Citations if available */}
-                  {Array.isArray(searchMeta?.groundingSources) && searchMeta.groundingSources.length > 0 && (
-                    <div style={{ marginTop: '8px', display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>Verified Grounding Sources:</span>
-                      {searchMeta.groundingSources.slice(0, 3).map((src, idx) => (
-                        <a 
-                          key={idx}
-                          href={src.uri}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            fontSize: '0.73rem',
-                            color: '#60A5FA',
-                            background: 'rgba(15, 23, 42, 0.8)',
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            textDecoration: 'none',
-                            border: '1px solid rgba(96, 165, 250, 0.2)'
-                          }}
-                        >
-                          🌐 {src.title || 'Search Source'}
-                        </a>
-                      ))}
-                    </div>
-                  )}
                 </div>
 
                 <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                  <button
-                    onClick={() => {
-                      if (onOpenShare) {
-                        onOpenShare({
-                          type: 'search',
-                          origin: searchQuery?.origin || 'JFK',
-                          destination: searchQuery?.destination || 'LHR',
-                          departDate: searchQuery?.departDate || '2026-08-15',
-                          returnDate: searchQuery?.returnDate,
-                          cabinClass: searchQuery?.cabinClass || 'Business',
-                          passengers: searchQuery?.passengers || 1,
-                          segments: searchQuery?.segments || null
-                        });
-                      }
-                    }}
-                    className="btn-outline-gold"
-                    style={{ padding: '8px 16px', fontSize: '0.85rem' }}
-                  >
-                    <Share2 size={16} />
-                    Share Search Itinerary
-                  </button>
-
                   <button
                     onClick={() => setShowTrend(!showTrend)}
                     className="btn-outline-gold"

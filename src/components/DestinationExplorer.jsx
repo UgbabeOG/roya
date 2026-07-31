@@ -297,7 +297,7 @@ export default function DestinationExplorer({ onSelectDestination, currency = 'U
                       borderRadius: 'var(--radius-sm)',
                       boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                     }}>
-                      SAVE {dest.discount}
+                      SAVE UP TO {dest.discount?.toLowerCase().includes('up to') ? dest.discount.replace(/up to\s*/i, '') : dest.discount}
                     </span>
                   </div>
 
@@ -585,7 +585,7 @@ export default function DestinationExplorer({ onSelectDestination, currency = 'U
                   {formatCurrency(selectedInsightsModal.royaPrice, currency)}
                 </span>
                 <span style={{ fontSize: '0.78rem', color: '#6EE7B7', marginLeft: '10px' }}>
-                  (Save {selectedInsightsModal.discount})
+                  (Save up to {selectedInsightsModal.discount?.toLowerCase().includes('up to') ? selectedInsightsModal.discount.replace(/up to\s*/i, '') : selectedInsightsModal.discount})
                 </span>
               </div>
 

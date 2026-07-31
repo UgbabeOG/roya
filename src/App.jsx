@@ -240,7 +240,6 @@ export default function App() {
           priceTrend={priceTrend}
           searchMeta={searchMeta}
           onSelectFlight={handleSelectFlight}
-          onOpenShare={handleOpenShare}
           currency={currency}
         />
       </AnimatedSection>
@@ -329,6 +328,7 @@ export default function App() {
         currency={currency}
         showToast={showToast}
         onClose={() => setIsTrackerOpen(false)}
+        onOpenShare={handleOpenShare}
         onOpenChat={() => {
           setIsTrackerOpen(false);
           setIsChatOpen(true);

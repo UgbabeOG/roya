@@ -728,13 +728,44 @@ export default function ReserveModal({ data, onClose, onOpenChat, showToast, onO
                   background: 'rgba(16, 185, 129, 0.15)',
                   border: '1px solid #10B981',
                   borderRadius: 'var(--radius-sm)',
-                  padding: '12px 16px',
+                  padding: '16px',
                   color: '#6EE7B7',
                   fontSize: '0.88rem',
-                  marginBottom: '12px',
-                  fontWeight: 700
+                  marginBottom: '16px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
                 }}>
-                  ✓ Flight Hold Confirmed for {passengerName}! Your PNR ({pnr}) details have been sent to {passengerEmail}.
+                  <div>
+                    ✓ Flight Hold Confirmed for {passengerName}! Your PNR ({pnr}) details have been registered.
+                  </div>
+                  {onOpenShare && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onOpenShare({
+                          type: 'pnr',
+                          pnrNumber: pnr,
+                          origin: data.origin?.code || data.origin || 'JFK',
+                          destination: data.destination?.code || data.destination || 'LHR',
+                          departDate: data.departDate,
+                          returnDate: data.returnDate,
+                          cabinClass: selectedCabin,
+                          passengers: passengersCount,
+                          airline: data.airline,
+                          flightNumber: data.flightNumber,
+                          royaPrice: totalFinalPrice,
+                          savings: totalSavings
+                        });
+                      }}
+                      className="btn-gold"
+                      style={{ padding: '8px 16px', fontSize: '0.85rem', width: 'fit-content', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                    >
+                      <Share2 size={16} />
+                      Share Reserved Itinerary Now
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -1046,32 +1077,45 @@ export default function ReserveModal({ data, onClose, onOpenChat, showToast, onO
                 {saving ? 'Locking PNR in DB...' : 'Confirm Flight Hold ($0 Now)'}
               </button>
 
-              <button 
-                type="button"
-                onClick={() => {
-                  if (onOpenShare) {
-                    onOpenShare({
-                      type: 'pnr',
-                      pnrNumber: pnr,
-                      origin: data.origin?.code || data.origin || 'JFK',
-                      destination: data.destination?.code || data.destination || 'LHR',
-                      departDate: data.departDate,
-                      returnDate: data.returnDate,
-                      cabinClass: selectedCabin,
-                      passengers: passengersCount,
-                      airline: data.airline,
-                      flightNumber: data.flightNumber,
-                      royaPrice: totalFinalPrice,
-                      savings: totalSavings
-                    });
-                  }
-                }}
-                className="btn-outline-gold"
-                style={{ width: '100%', padding: '10px', fontSize: '0.85rem' }}
-              >
-                <Share2 size={15} />
-                Share My Itinerary (Email / Link)
-              </button>
+              {confirmedSuccess ? (
+                <button 
+                  type="button"
+                  onClick={() => {
+                    if (onOpenShare) {
+                      onOpenShare({
+                        type: 'pnr',
+                        pnrNumber: pnr,
+                        origin: data.origin?.code || data.origin || 'JFK',
+                        destination: data.destination?.code || data.destination || 'LHR',
+                        departDate: data.departDate,
+                        returnDate: data.returnDate,
+                        cabinClass: selectedCabin,
+                        passengers: passengersCount,
+                        airline: data.airline,
+                        flightNumber: data.flightNumber,
+                        royaPrice: totalFinalPrice,
+                        savings: totalSavings
+                      });
+                    }
+                  }}
+                  className="btn-gold"
+                  style={{ width: '100%', padding: '10px', fontSize: '0.85rem' }}
+                >
+                  <Share2 size={15} />
+                  Share Reserved Itinerary (Email / Link)
+                </button>
+              ) : (
+                <button 
+                  type="button"
+                  disabled
+                  className="btn-outline-gold"
+                  style={{ width: '100%', padding: '10px', fontSize: '0.85rem', opacity: 0.5, cursor: 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  title="Reserve flight hold first to unlock itinerary sharing"
+                >
+                  <Lock size={15} />
+                  Share Itinerary (Locked until Reserved)
+                </button>
+              )}
 
               <button 
                 type="button"

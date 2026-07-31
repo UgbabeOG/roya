@@ -353,7 +353,7 @@ export default function FlightStatusSection({ onSelectFlight }) {
                   Verified GDS Live Hold Available for {statusResult.flightNumber}
                 </div>
                 <span style={{ fontSize: '0.78rem', color: '#94A3B8' }}>
-                  Lock concierge fare from <strong>${statusResult.royaPrice || 780}</strong> (Save 30% vs public fare)
+                  Lock concierge fare from <strong>${statusResult.royaPrice || 780}</strong> (Save up to 30% vs public fare)
                 </span>
               </div>
 

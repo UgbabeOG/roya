@@ -1088,7 +1088,7 @@ export default function AdminPortal({ isOpen, onClose, showToast, currency = 'US
                         {d.region}
                       </span>
                       <span style={{ position: 'absolute', top: '8px', right: '8px', background: 'var(--color-gold)', color: '#070B14', padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 800 }}>
-                        SAVE {d.discount}
+                        SAVE UP TO {d.discount?.toLowerCase().includes('up to') ? d.discount.replace(/up to\s*/i, '') : d.discount}
                       </span>
                     </div>
 

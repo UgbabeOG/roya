@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { Search, ShieldCheck, X, Clock, Plane, Activity, CheckCircle2, AlertCircle, RefreshCw, User, Mail, Phone, Tag } from 'lucide-react';
+import { Search, ShieldCheck, X, Clock, Plane, Activity, CheckCircle2, AlertCircle, RefreshCw, User, Mail, Phone, Tag, Share2 } from 'lucide-react';
 import { formatCurrency } from '../utils/pnrGenerator';
 import { lookupBookingFromDatabase } from '../lib/bookingsService';
 
-export default function BookingTracker({ isOpen, onClose, onOpenChat, showToast, currency = 'USD' }) {
+export default function BookingTracker({ isOpen, onClose, onOpenChat, onOpenShare, showToast, currency = 'USD' }) {
   const [tab, setTab] = useState('pnr'); // 'pnr' | 'flight'
   const [searchInput, setSearchInput] = useState('');
   const [result, setResult] = useState(null);
@@ -290,9 +290,37 @@ export default function BookingTracker({ isOpen, onClose, onOpenChat, showToast,
                   </span>
                 </div>
 
-                <button onClick={onOpenChat} className="btn-gold" style={{ width: '100%', padding: '11px', fontSize: '0.9rem' }}>
-                  Message Concierge Regarding PNR {result.pnr}
-                </button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  {onOpenShare && (
+                    <button 
+                      onClick={() => {
+                        const routeParts = (result.route || '').split('→').map(s => s.trim());
+                        onOpenShare({
+                          type: 'pnr',
+                          pnrNumber: result.pnr,
+                          origin: routeParts[0] || 'JFK',
+                          destination: routeParts[1] || 'LHR',
+                          departDate: result.departDate,
+                          returnDate: result.returnDate,
+                          cabinClass: result.cabin,
+                          passengers: result.passengers || 1,
+                          airline: result.airline,
+                          flightNumber: result.flightNumber,
+                          royaPrice: result.totalFare,
+                          savings: result.savedAmount
+                        });
+                      }}
+                      className="btn-outline-gold" 
+                      style={{ flex: 1, padding: '11px', fontSize: '0.88rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                    >
+                      <Share2 size={16} />
+                      Share Reserved Itinerary
+                    </button>
+                  )}
+                  <button onClick={onOpenChat} className="btn-gold" style={{ flex: 1, padding: '11px', fontSize: '0.88rem' }}>
+                    Message Concierge
+                  </button>
+                </div>
               </div>
             )}
           </div>
