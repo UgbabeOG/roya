@@ -65,13 +65,18 @@ export default function DestinationExplorer({ onSelectDestination, currency = 'U
       filter === 'Popular' ? item.popular :
       item.region === filter;
 
-    // Search query filter
+    // Search query filter (Multi-field matching)
     const query = searchQuery.toLowerCase().trim();
     const matchesSearch = !query ? true : (
-      item.name.toLowerCase().includes(query) ||
-      item.airport.toLowerCase().includes(query) ||
-      item.tagline.toLowerCase().includes(query) ||
-      item.region.toLowerCase().includes(query)
+      (item.name && item.name.toLowerCase().includes(query)) ||
+      (item.country && item.country.toLowerCase().includes(query)) ||
+      (item.airport && item.airport.toLowerCase().includes(query)) ||
+      (item.region && item.region.toLowerCase().includes(query)) ||
+      (item.tagline && item.tagline.toLowerCase().includes(query)) ||
+      (item.description && item.description.toLowerCase().includes(query)) ||
+      (item.visaRequirement && item.visaRequirement.toLowerCase().includes(query)) ||
+      (item.currency && item.currency.toLowerCase().includes(query)) ||
+      (Array.isArray(item.highlights) && item.highlights.some(h => typeof h === 'string' && h.toLowerCase().includes(query)))
     );
 
     return matchesRegion && matchesSearch;
@@ -90,15 +95,75 @@ export default function DestinationExplorer({ onSelectDestination, currency = 'U
           </p>
         </div>
 
-        {/* Region Filter Tabs & Search Bar */}
+        {/* Live Route Search Bar & Region Filter Tabs */}
         <div style={{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           gap: '20px',
-          marginBottom: '40px'
+          marginBottom: '32px'
         }}>
-          {/* Region Tabs */}
+          {/* 1. Intuitive Search Bar (Positioned ABOVE region filter tabs) */}
+          <div style={{
+            position: 'relative',
+            width: '100%',
+            maxWidth: '540px'
+          }}>
+            <Search 
+              size={18} 
+              color="var(--color-gold)" 
+              style={{ position: 'absolute', left: '18px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', zIndex: 2 }} 
+            />
+            <input 
+              type="text"
+              placeholder="Search by city (Tokyo, Paris), country, airport (LHR, DXB), or region..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{
+                width: '100%',
+                paddingLeft: '50px',
+                paddingRight: searchQuery ? '44px' : '20px',
+                paddingTop: '13px',
+                paddingBottom: '13px',
+                background: 'rgba(15, 23, 42, 0.85)',
+                border: searchQuery ? '1px solid var(--color-gold)' : '1px solid rgba(212, 175, 55, 0.35)',
+                borderRadius: 'var(--radius-full)',
+                color: '#FFF',
+                fontSize: '0.92rem',
+                outline: 'none',
+                boxShadow: searchQuery ? '0 0 16px rgba(229, 193, 88, 0.2)' : '0 4px 16px rgba(0,0,0,0.2)',
+                transition: 'all 0.25s ease'
+              }}
+            />
+            {searchQuery && (
+              <button 
+                type="button"
+                onClick={() => setSearchQuery('')}
+                title="Clear Search"
+                style={{
+                  position: 'absolute',
+                  right: '14px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'rgba(212, 175, 55, 0.15)',
+                  border: '1px solid rgba(212, 175, 55, 0.3)',
+                  borderRadius: '50%',
+                  color: 'var(--color-gold-bright)',
+                  cursor: 'pointer',
+                  width: '24px',
+                  height: '24px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+
+          {/* 2. Region Filter Tabs */}
           <div style={{
             display: 'flex',
             justifyContent: 'center',
@@ -126,49 +191,26 @@ export default function DestinationExplorer({ onSelectDestination, currency = 'U
             ))}
           </div>
 
-          {/* Quick Filter Search Bar */}
-          <div style={{
-            position: 'relative',
-            width: '100%',
-            maxWidth: '480px'
-          }}>
-            <Search size={16} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#94A3B8' }} />
-            <input 
-              type="text"
-              placeholder="Search route by city or airport code (e.g. Dubai, LAX, London)..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="reserve-modal-input"
-              style={{
-                width: '100%',
-                paddingLeft: '42px',
-                paddingRight: searchQuery ? '36px' : '16px',
-                background: 'rgba(15, 23, 42, 0.7)',
-                border: '1px solid rgba(212, 175, 55, 0.3)',
-                borderRadius: 'var(--radius-full)',
-                color: '#FFF',
-                fontSize: '0.88rem'
-              }}
-            />
-            {searchQuery && (
-              <button 
-                onClick={() => setSearchQuery('')}
-                style={{
-                  position: 'absolute',
-                  right: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  color: '#94A3B8',
-                  cursor: 'pointer',
-                  padding: '2px'
-                }}
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
+          {/* 3. Match Indicator & Route Counter */}
+          {!loading && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '0.82rem',
+              color: 'var(--color-text-muted)',
+              marginTop: '-4px'
+            }}>
+              <Sparkles size={14} color="var(--color-gold)" />
+              <span>
+                {searchQuery || filter !== 'All' ? (
+                  <>Showing <strong style={{ color: 'var(--color-gold-bright)' }}>{filteredDestinations.length}</strong> matching route{filteredDestinations.length === 1 ? '' : 's'}</>
+                ) : (
+                  <>Showing <strong style={{ color: '#FFF' }}>{filteredDestinations.length}</strong> verified luxury routes worldwide</>
+                )}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Loading Skeleton Screen */}
@@ -220,16 +262,36 @@ export default function DestinationExplorer({ onSelectDestination, currency = 'U
             </div>
           </div>
         ) : filteredDestinations.length === 0 ? (
-          <div className="glass-card" style={{ padding: '40px', textAlign: 'center', color: '#94A3B8' }}>
-            <Compass size={36} color="var(--color-gold)" style={{ marginBottom: '12px' }} />
-            <p style={{ fontSize: '1.05rem', color: '#FFF' }}>No routes found matching your filter.</p>
-            <p style={{ fontSize: '0.85rem', marginTop: '6px' }}>Try searching for a different city or switching regions.</p>
+          <div className="glass-card" style={{ padding: '48px 24px', textAlign: 'center', color: '#94A3B8', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+            <div style={{
+              width: '64px',
+              height: '64px',
+              borderRadius: '50%',
+              background: 'rgba(212, 175, 55, 0.1)',
+              border: '1px solid rgba(212, 175, 55, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '4px'
+            }}>
+              <Compass size={32} color="var(--color-gold)" />
+            </div>
+            <h3 style={{ fontSize: '1.15rem', color: '#FFF', margin: 0, fontWeight: 700 }}>No routes found matching your criteria</h3>
+            <p style={{ fontSize: '0.88rem', color: '#94A3B8', maxWidth: '440px', margin: 0 }}>
+              {searchQuery ? (
+                <>No destinations found for "<strong style={{ color: 'var(--color-gold-bright)' }}>{searchQuery}</strong>"{filter !== 'All' ? ` in ${filter}` : ''}. Try searching by airport code (e.g. LHR, DXB, JFK, HND) or city name.</>
+              ) : (
+                <>No destinations found in the selected category (<strong style={{ color: '#FFF' }}>{filter}</strong>).</>
+              )}
+            </p>
             <button 
+              type="button"
               onClick={() => { setFilter('All'); setSearchQuery(''); }}
-              className="btn-outline-gold"
-              style={{ marginTop: '16px', padding: '8px 20px', fontSize: '0.85rem' }}
+              className="btn-gold"
+              style={{ marginTop: '8px', padding: '10px 24px', fontSize: '0.88rem', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
             >
-              Reset Filters
+              <RefreshCw size={15} />
+              Reset Search & Filters
             </button>
           </div>
         ) : (
@@ -394,20 +456,6 @@ export default function DestinationExplorer({ onSelectDestination, currency = 'U
                     flexDirection: 'column',
                     gap: '12px'
                   }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                      <div>
-                        <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', display: 'block' }}>
-                          Standard Fare: <strike>{formatCurrency(dest.retailPrice, currency)}</strike>
-                        </span>
-                        <span style={{ fontSize: '1.35rem', fontWeight: 800, color: 'var(--color-gold-bright)' }}>
-                          {formatCurrency(dest.royaPrice, currency)}
-                        </span>
-                      </div>
-                      <span style={{ fontSize: '0.78rem', color: '#6EE7B7', fontWeight: 700, background: 'rgba(110, 231, 183, 0.1)', padding: '3px 8px', borderRadius: '4px' }}>
-                        Concierge Rate
-                      </span>
-                    </div>
-
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                       <button 
                         type="button"
@@ -428,11 +476,11 @@ export default function DestinationExplorer({ onSelectDestination, currency = 'U
                           e.stopPropagation();
                           handleSelectWithValidation(dest);
                         }}
-                        className="btn-primary-gold"
+                        className="btn-gold"
                         style={{ padding: '8px', fontSize: '0.8rem', whiteSpace: 'nowrap' }}
                       >
                         <Plane size={14} />
-                        Reserve Fare
+                        Reserve This Route
                       </button>
                     </div>
 
