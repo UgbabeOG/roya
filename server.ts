@@ -653,6 +653,76 @@ app.post("/api/flights/price-trend", async (req, res) => {
   }
 });
 
+// API Endpoint 4: Dynamic Travel Advice & Packing Tips API with Google Search Grounding
+app.post("/api/flights/travel-advice", async (req, res) => {
+  try {
+    const { destination, departDate } = req.body;
+    if (!destination) {
+      return res.status(400).json({ success: false, error: "Destination is required" });
+    }
+
+    const gemini = getGeminiClient();
+    let adviceText = null;
+    let groundingSources: any[] = [];
+    let groundedByAI = false;
+
+    const dateContext = departDate ? `for a trip starting around ${departDate}` : "for the upcoming travel season";
+
+    if (gemini) {
+      try {
+        const prompt = `Provide detailed, highly up-to-date travel advice, local weather expectations, safety/entry guidelines, cultural etiquette, and custom packing tips for a traveler going to "${destination}" ${dateContext}.
+Search the web to find current local events, current weather conditions/seasons, any local travel advisories, and the best packing suggestions.
+Organize your response into a professional structured layout with sections like:
+1. Destination Overview
+2. Weather & Seasonal Outlook
+3. Cultural Etiquette & Local Advice
+4. Safety & Essential Guidelines
+5. Recommended Packing List (specific to this destination & season)
+
+Keep the writing tone premium, welcoming, and elegant, matching a luxury travel concierge.
+Make sure to answer comprehensively based on Google Search grounding results. Keep markdown formatting pristine and readable. Do not wrap the output in a markdown block of itself, just write raw markdown text.`;
+
+        const response = await gemini.models.generateContent({
+          model: 'gemini-3.6-flash',
+          contents: prompt,
+          config: {
+            tools: [{ googleSearch: {} }]
+          }
+        });
+
+        adviceText = response.text || '';
+        
+        const chunks = (response.candidates?.[0]?.groundingMetadata as any)?.groundingChunks;
+        if (Array.isArray(chunks)) {
+          groundingSources = chunks.map((c: any) => ({
+            title: c?.web?.title || 'Travel Guide Source',
+            uri: c?.web?.uri || ''
+          })).filter((s: any) => s.uri);
+        }
+        groundedByAI = true;
+      } catch (geminiError: any) {
+        console.warn('[Travel Advice Engine] Gemini grounding warning:', geminiError?.message);
+      }
+    }
+
+    // Fallback if AI or key is not available
+    if (!adviceText) {
+      adviceText = `### Destination Overview\nWelcome to ${destination}! This premium global destination offers rich history, magnificent architectural landmarks, and exceptional culinary scenes. Whether visiting for business or leisure, our bespoke concierge services ensure an unparalleled travel experience.\n\n### Weather & Seasonal Outlook\nWeather varies depending on the time of year. Generally, we recommend checking high-fidelity weather forecasts 72 hours before your departure. Stay prepared for light showers or sunny intervals.\n\n### Cultural Etiquette & Local Advice\n- **Tipping:** Standard practices apply; 10% is customary in fine-dining establishments if not already included.\n- **Greetings:** A polite handshake or nod of respect is appreciated in all social and professional contexts.\n\n### Safety & Essential Guidelines\n- Secure travel insurance prior to departure.\n- Keep physical and digital copies of important documents such as passports, visas, and booking reference codes.\n\n### Recommended Packing List\n- Versatile layered attire (neutral tones preferred)\n- Smart-casual wear for premium dining and lounge entry\n- Comfortable walking shoes\n- All essential electronics, chargers, and universal power adapters`;
+    }
+
+    res.json({
+      success: true,
+      destination,
+      advice: adviceText,
+      groundedByAI,
+      sources: groundingSources
+    });
+  } catch (err: any) {
+    console.error("Travel Advice API Error:", err);
+    res.status(500).json({ success: false, error: err.message || "Failed to generate travel advice" });
+  }
+});
+
 // API Endpoint: Grant or Revoke Admin Custom Claim on Firebase User
 app.post("/api/admin/set-role", async (req, res) => {
   try {

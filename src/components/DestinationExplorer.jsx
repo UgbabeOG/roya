@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { fetchDestinationsFromFirestore } from '../lib/destinationsService';
 import { formatCurrency } from '../utils/pnrGenerator';
-import { Plane, Calendar, FileCheck, Coins, Clock, Search, RefreshCw, Info, MapPin, CheckCircle2, X, Compass, Sparkles, Database } from 'lucide-react';
+import { Plane, Calendar, FileCheck, Coins, Clock, Search, RefreshCw, Info, MapPin, CheckCircle2, X, Compass, Sparkles, Database, Luggage, Globe } from 'lucide-react';
 
 export default function DestinationExplorer({ onSelectDestination, currency = 'USD' }) {
   const [destinations, setDestinations] = useState([]);
@@ -9,6 +9,115 @@ export default function DestinationExplorer({ onSelectDestination, currency = 'U
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedInsightsModal, setSelectedInsightsModal] = useState(null);
+  const [adviceLoading, setAdviceLoading] = useState(false);
+  const [adviceData, setAdviceData] = useState(null);
+  const [adviceError, setAdviceError] = useState(null);
+  const [adviceTab, setAdviceTab] = useState('insights'); // 'insights' or 'ai-advice'
+
+  useEffect(() => {
+    if (selectedInsightsModal) {
+      setAdviceTab('insights');
+      setAdviceData(null);
+      setAdviceError(null);
+    } else {
+      setAdviceData(null);
+    }
+  }, [selectedInsightsModal]);
+
+  const fetchTravelAdvice = async (destinationName) => {
+    if (!destinationName) return;
+    try {
+      setAdviceLoading(true);
+      setAdviceError(null);
+      const res = await fetch('/api/flights/travel-advice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ destination: destinationName })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setAdviceData(data);
+      } else {
+        setAdviceError(data.error || 'Failed to fetch travel advice.');
+      }
+    } catch (err) {
+      console.error('Error fetching travel advice:', err);
+      setAdviceError('Could not connect to travel concierge service.');
+    } finally {
+      setAdviceLoading(false);
+    }
+  };
+
+  const renderFormattedAdvice = (text) => {
+    if (!text) return null;
+    const sections = text.split(/(?=### |## |# )/g);
+    return sections.map((section, idx) => {
+      const isHeader = section.startsWith('### ') || section.startsWith('## ') || section.startsWith('# ');
+      let content = section;
+      let title = '';
+      if (isHeader) {
+        const match = section.match(/^(### |## |# )([^\n]+)\n?([\s\S]*)/);
+        if (match) {
+          title = match[2].trim();
+          content = match[3].trim();
+        }
+      }
+      const lines = content.split('\n').map(line => line.trim()).filter(Boolean);
+      return (
+        <div 
+          key={idx} 
+          style={{ 
+            background: 'rgba(15, 23, 42, 0.65)', 
+            padding: '16px', 
+            borderRadius: '12px', 
+            border: '1px solid rgba(212, 175, 55, 0.15)',
+            marginBottom: '16px',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.2)'
+          }}
+        >
+          {title && (
+            <h4 style={{ 
+              color: 'var(--color-gold-bright)', 
+              fontSize: '1.05rem', 
+              fontWeight: 700, 
+              marginBottom: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              borderBottom: '1px solid rgba(212, 175, 55, 0.2)',
+              paddingBottom: '6px'
+            }}>
+              {title.toLowerCase().includes('overview') && '🌍 '}
+              {title.toLowerCase().includes('weather') && '☀️ '}
+              {title.toLowerCase().includes('etiquette') && '🤝 '}
+              {title.toLowerCase().includes('safety') && '🛡️ '}
+              {title.toLowerCase().includes('packing') && '🧳 '}
+              {title}
+            </h4>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {lines.map((line, lIdx) => {
+              const isBullet = line.startsWith('-') || line.startsWith('*') || line.startsWith('•');
+              const cleanLine = line.replace(/^[-*•]\s*/, '').replace(/\*\*(.*?)\*\*/g, '$1');
+              if (isBullet) {
+                return (
+                  <div key={lIdx} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.88rem', color: '#E2E8F0', lineHeight: '1.5' }}>
+                    <span style={{ color: 'var(--color-gold)', marginTop: '4px' }}>•</span>
+                    <span>{cleanLine}</span>
+                  </div>
+                );
+              }
+              return (
+                <p key={lIdx} style={{ fontSize: '0.88rem', color: '#E2E8F0', margin: 0, lineHeight: '1.5' }}>
+                  {cleanLine}
+                </p>
+              );
+            })}
+          </div>
+        </div>
+      );
+    });
+  };
 
   useEffect(() => {
     async function loadStoreDestinations() {
@@ -546,72 +655,249 @@ export default function DestinationExplorer({ onSelectDestination, currency = 'U
             <h2 className="font-royal" style={{ color: '#FFF', fontSize: '1.6rem', marginBottom: '4px' }}>
               {selectedInsightsModal.name} ({selectedInsightsModal.airport})
             </h2>
-            <p style={{ color: 'var(--color-gold)', fontSize: '0.88rem', marginBottom: '20px' }}>
+            <p style={{ color: 'var(--color-gold)', fontSize: '0.88rem', marginBottom: '16px' }}>
               Region: {selectedInsightsModal.region} • Tagline: {selectedInsightsModal.tagline}
             </p>
 
+            {/* Elegant Tab Switcher */}
             <div style={{
-              height: '180px',
-              borderRadius: '12px',
-              backgroundImage: `url('${selectedInsightsModal.image}')`,
-              backgroundSize: 'cover',
-              backgroundPosition: 'center',
-              marginBottom: '20px'
-            }} />
-
-            {/* Comprehensive Insight Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px', marginBottom: '20px' }}>
-              
-              <div style={{ background: 'rgba(15, 23, 42, 0.7)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <span style={{ color: 'var(--color-gold)', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                  🗓️ Best Time to Visit
-                </span>
-                <span style={{ color: '#FFF', fontSize: '0.9rem', fontWeight: 600 }}>
-                  {selectedInsightsModal.bestTimeToVisit}
-                </span>
-              </div>
-
-              <div style={{ background: 'rgba(15, 23, 42, 0.7)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <span style={{ color: 'var(--color-gold)', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                  🛂 Visa & Entry Policy
-                </span>
-                <span style={{ color: '#FFF', fontSize: '0.9rem', fontWeight: 600 }}>
-                  {selectedInsightsModal.visaRequirement}
-                </span>
-              </div>
-
-              <div style={{ background: 'rgba(15, 23, 42, 0.7)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <span style={{ color: 'var(--color-gold)', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                  🪙 Currency & Language
-                </span>
-                <span style={{ color: '#FFF', fontSize: '0.9rem', fontWeight: 600 }}>
-                  {selectedInsightsModal.currency} ({selectedInsightsModal.language})
-                </span>
-              </div>
-
-              <div style={{ background: 'rgba(15, 23, 42, 0.7)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <span style={{ color: 'var(--color-gold)', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                  ⏱️ Flight Times
-                </span>
-                <span style={{ color: '#FFF', fontSize: '0.9rem', fontWeight: 600 }}>
-                  {selectedInsightsModal.averageFlightDuration}
-                </span>
-              </div>
-
+              display: 'flex',
+              gap: '12px',
+              borderBottom: '1px solid rgba(255,255,255,0.1)',
+              marginBottom: '20px',
+              paddingBottom: '2px'
+            }}>
+              <button
+                type="button"
+                onClick={() => setAdviceTab('insights')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: adviceTab === 'insights' ? '2px solid var(--color-gold)' : '2px solid transparent',
+                  color: adviceTab === 'insights' ? 'var(--color-gold-bright)' : '#94A3B8',
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  fontSize: '0.88rem',
+                  fontWeight: 600,
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Compass size={16} />
+                Destination Specs
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAdviceTab('ai-advice');
+                  if (!adviceData && !adviceLoading) {
+                    fetchTravelAdvice(selectedInsightsModal.name);
+                  }
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  borderBottom: adviceTab === 'ai-advice' ? '2px solid var(--color-gold)' : '2px solid transparent',
+                  color: adviceTab === 'ai-advice' ? 'var(--color-gold-bright)' : '#94A3B8',
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  fontSize: '0.88rem',
+                  fontWeight: 600,
+                  transition: 'all 0.2s',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Sparkles size={16} color="var(--color-gold-bright)" />
+                AI Live Travel & Packing Advice
+              </button>
             </div>
 
-            {/* Highlights */}
-            {Array.isArray(selectedInsightsModal.highlights) && (
-              <div style={{ marginBottom: '24px' }}>
-                <h4 style={{ color: '#FFF', fontSize: '0.95rem', marginBottom: '8px' }}>Top Route Highlights:</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                  {selectedInsightsModal.highlights.map((hl, idx) => (
-                    <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#CBD5E1' }}>
-                      <CheckCircle2 size={15} color="#6EE7B7" />
-                      <span>{hl}</span>
-                    </div>
-                  ))}
+            {adviceTab === 'insights' && (
+              <>
+                <div style={{
+                  height: '180px',
+                  borderRadius: '12px',
+                  backgroundImage: `url('${selectedInsightsModal.image}')`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  marginBottom: '20px'
+                }} />
+
+                {/* Comprehensive Insight Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+                  
+                  <div style={{ background: 'rgba(15, 23, 42, 0.7)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <span style={{ color: 'var(--color-gold)', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                      🗓️ Best Time to Visit
+                    </span>
+                    <span style={{ color: '#FFF', fontSize: '0.9rem', fontWeight: 600 }}>
+                      {selectedInsightsModal.bestTimeToVisit}
+                    </span>
+                  </div>
+
+                  <div style={{ background: 'rgba(15, 23, 42, 0.7)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <span style={{ color: 'var(--color-gold)', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                      🛂 Visa & Entry Policy
+                    </span>
+                    <span style={{ color: '#FFF', fontSize: '0.9rem', fontWeight: 600 }}>
+                      {selectedInsightsModal.visaRequirement}
+                    </span>
+                  </div>
+
+                  <div style={{ background: 'rgba(15, 23, 42, 0.7)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <span style={{ color: 'var(--color-gold)', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                      🪙 Currency & Language
+                    </span>
+                    <span style={{ color: '#FFF', fontSize: '0.9rem', fontWeight: 600 }}>
+                      {selectedInsightsModal.currency} ({selectedInsightsModal.language})
+                    </span>
+                  </div>
+
+                  <div style={{ background: 'rgba(15, 23, 42, 0.7)', padding: '14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <span style={{ color: 'var(--color-gold)', fontSize: '0.75rem', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
+                      ⏱️ Flight Times
+                    </span>
+                    <span style={{ color: '#FFF', fontSize: '0.9rem', fontWeight: 600 }}>
+                      {selectedInsightsModal.averageFlightDuration}
+                    </span>
+                  </div>
+
                 </div>
+
+                {/* Highlights */}
+                {Array.isArray(selectedInsightsModal.highlights) && (
+                  <div style={{ marginBottom: '24px' }}>
+                    <h4 style={{ color: '#FFF', fontSize: '0.95rem', marginBottom: '8px' }}>Top Route Highlights:</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {selectedInsightsModal.highlights.map((hl, idx) => (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: '#CBD5E1' }}>
+                          <CheckCircle2 size={15} color="#6EE7B7" />
+                          <span>{hl}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {adviceTab === 'ai-advice' && (
+              <div style={{ minHeight: '300px', display: 'flex', flexDirection: 'column' }}>
+                {/* Visual Header banner */}
+                <div style={{
+                  height: '140px',
+                  borderRadius: '12px',
+                  backgroundImage: `linear-gradient(rgba(0,0,0,0.15), rgba(0,0,0,0.75)), url('${selectedInsightsModal.image}')`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                  marginBottom: '20px',
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  padding: '16px',
+                  border: '1px solid rgba(212, 175, 55, 0.3)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Globe size={18} color="var(--color-gold-bright)" />
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#FFF', textShadow: '1px 1px 4px rgba(0,0,0,0.8)' }}>
+                      Live Google Search Grounding Enabled
+                    </span>
+                  </div>
+                </div>
+
+                {adviceLoading ? (
+                  <div style={{ 
+                    display: 'flex', 
+                    flexDirection: 'column', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    padding: '40px 20px',
+                    gap: '16px'
+                  }}>
+                    <RefreshCw className="animate-spin" size={32} color="var(--color-gold)" style={{ animation: 'spin 1.5s linear infinite' }} />
+                    <div style={{ textAlign: 'center' }}>
+                      <p style={{ color: '#FFF', fontWeight: 600, fontSize: '0.95rem', marginBottom: '4px' }}>
+                        Securing real-time insights...
+                      </p>
+                      <p style={{ color: '#94A3B8', fontSize: '0.78rem' }}>
+                        Grounding destination advice using latest web search results
+                      </p>
+                    </div>
+                  </div>
+                ) : adviceError ? (
+                  <div style={{ 
+                    padding: '24px', 
+                    background: 'rgba(239, 68, 68, 0.1)', 
+                    border: '1px solid rgba(239, 68, 68, 0.2)', 
+                    borderRadius: '8px',
+                    textAlign: 'center'
+                  }}>
+                    <p style={{ color: '#FCA5A5', fontSize: '0.88rem', marginBottom: '12px' }}>{adviceError}</p>
+                    <button 
+                      type="button"
+                      onClick={() => fetchTravelAdvice(selectedInsightsModal.name)}
+                      className="btn-outline-gold"
+                      style={{ padding: '6px 16px', fontSize: '0.8rem', display: 'inline-flex', gap: '6px', margin: '0 auto' }}
+                    >
+                      <RefreshCw size={14} /> Retry Query
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ maxHeight: '45vh', overflowY: 'auto', paddingRight: '4px', marginBottom: '20px' }}>
+                    {renderFormattedAdvice(adviceData?.advice)}
+
+                    {/* Grounding Citations */}
+                    {adviceData?.sources && adviceData.sources.length > 0 && (
+                      <div style={{
+                        marginTop: '20px',
+                        padding: '12px 16px',
+                        background: 'rgba(30, 41, 59, 0.4)',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(255, 255, 255, 0.05)'
+                      }}>
+                        <span style={{ display: 'block', fontSize: '0.75rem', color: '#94A3B8', fontWeight: 600, textTransform: 'uppercase', marginBottom: '8px' }}>
+                          🔍 Grounding Sources
+                        </span>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                          {adviceData.sources.map((src, sIdx) => (
+                            <a 
+                              key={sIdx}
+                              href={src.uri}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                fontSize: '0.75rem',
+                                color: 'var(--color-gold)',
+                                textDecoration: 'none',
+                                background: 'rgba(212, 175, 55, 0.1)',
+                                padding: '4px 8px',
+                                borderRadius: '4px',
+                                border: '1px solid rgba(212, 175, 55, 0.15)',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                transition: 'all 0.2s ease'
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'rgba(212, 175, 55, 0.2)';
+                                e.currentTarget.style.borderColor = 'var(--color-gold)';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'rgba(212, 175, 55, 0.1)';
+                                e.currentTarget.style.borderColor = 'rgba(212, 175, 55, 0.15)';
+                              }}
+                            >
+                              {src.title} ↗
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
