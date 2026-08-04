@@ -130,7 +130,7 @@ export default function Hero({ onStartSearch, onOpenChat }) {
             letterSpacing: '0.03em',
             lineHeight: 1.3
           }}>
-            SAVE UP TO 30% ON BOOK FLIGHTS TO ANY DESTINATION WORLDWIDE
+            SAVE UP TO 30% ON FLIGHTS TO ANY DESTINATION WORLDWIDE
           </h2>
           <p style={{
             color: '#CBD5E1',

@@ -153,6 +153,13 @@ export async function fetchAirportsFromFirestore() {
     if (!snap.empty) {
       const list = snap.docs.map(d => d.data());
       console.log(`[Firestore] Retrieved ${list.length} popular airports directly from Firebase Store.`);
+      
+      // Auto-update/seed if local configuration list has more airports
+      if (list.length < SEED_AIRPORTS.length) {
+        console.log(`[Firestore] Upgrading database with new global airports (db has ${list.length}, local has ${SEED_AIRPORTS.length})...`);
+        await seedDestinationsToFirestore();
+        return SEED_AIRPORTS;
+      }
       return list;
     } else {
       await seedDestinationsToFirestore();
