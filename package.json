@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "node api.js && tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
-    "start": "node api.js && node dist/server.cjs",
+    "dev": "node init && tsx server.ts",
+    "build": "node init && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "start": "node init && node dist/server.cjs",
     "lint": "vite build",
     "preview": "vite preview"
   },
